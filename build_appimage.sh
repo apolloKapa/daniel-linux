@@ -14,7 +14,6 @@ APPDIR="$BUILD_DIR/Daniel.AppDir"
 VENV_DIR="$BUILD_DIR/venv"
 VERSION="${DANIEL_VERSION:-$(git describe --tags --always 2>/dev/null || echo dev)}"
 
-python3 -c "import tkinter" || { echo "python3 with tkinter is required"; exit 1; }
 
 if [[ ! -x "$VENV_DIR/bin/python" ]]; then
     python3 -m venv "$VENV_DIR"
