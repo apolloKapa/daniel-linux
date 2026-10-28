@@ -269,8 +269,7 @@ class _Relay(QObject):
 
 
 class Tk(QWidget):
-    """The main window. Pin key and dragging: see linux_pin (pinned windows can't be moved by the
-    compositor, so dragging the window with the left button moves it while pinned)."""
+    """The main window. Pinning: see linux_pin."""
 
     def __init__(self, className="daniel"):
         app = _ensure_app()
@@ -283,7 +282,6 @@ class Tk(QWidget):
         self._timer_ids = itertools.count(1)
         self._relay = _Relay()
         self._main_thread = threading.main_thread()
-        self._drag_from = None
         self.tk = self  # root.tk.call(...)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
@@ -381,27 +379,9 @@ class Tk(QWidget):
         return super().event(event)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            import linux_pin
-            if linux_pin.is_pinned():
-                # a layer surface has no position Qt knows: move it so the point grabbed stays
-                # under the pointer
-                self._drag_from = event.position()
-            elif self.windowHandle() is not None:
-                # unpinned: let the compositor move the window
-                self.windowHandle().startSystemMove()
+        # unpinned: dragging moves the window (the compositor moves it). A pinned layer surface
+        # can't be dragged reliably (its pointer coordinates move with it): unpin with P, move, pin.
+        import linux_pin
+        if event.button() == Qt.MouseButton.LeftButton and not linux_pin.is_pinned() and self.windowHandle() is not None:
+            self.windowHandle().startSystemMove()
         super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if self._drag_from is not None:
-            import linux_pin
-            delta = event.position() - self._drag_from
-            linux_pin.move_by(self, int(delta.x()), int(delta.y()))
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if self._drag_from is not None:
-            import linux_pin
-            linux_pin.save_position()
-        self._drag_from = None
-        super().mouseReleaseEvent(event)

@@ -176,6 +176,31 @@ def _set_x11_on_top(widget, on):
     widget.show()
 
 
+def _screens():
+    from PyQt6.QtGui import QGuiApplication
+    return [s.geometry() for s in QGuiApplication.screens()]
+
+
+def _on_screen(pos, size):
+    """pos if the window would be (mostly) visible there, else None."""
+    if pos is None:
+        return None
+    w, h = size
+    for g in _screens():
+        if g.x() - w // 2 <= pos[0] <= g.x() + g.width() - w // 2 and g.y() <= pos[1] <= g.y() + g.height() - h // 2:
+            return pos
+    return None
+
+
+def _default_pos(widget):
+    """Top-left of the window's screen (not widget.screen(): pywebview's window shadows it)."""
+    from PyQt6.QtGui import QGuiApplication
+    handle = widget.windowHandle()
+    screen = (handle.screen() if handle is not None else None) or QGuiApplication.primaryScreen()
+    geo = screen.geometry() if screen is not None else None
+    return (geo.x() + 40, geo.y() + 40) if geo is not None else (40, 40)
+
+
 def _do_pin(widget, size=None):
     if _state["pinned"]:
         return False
@@ -186,10 +211,9 @@ def _do_pin(widget, size=None):
     lib = _load_lib()
     if not lib or not lib.danlayer_available():
         return False
-    pos = _window_global_pos()
-    if pos is None:
-        geo = widget.screen().geometry() if widget.screen() else None
-        pos = _state["pos"] or _load_saved()[0] or ((geo.x() + 40, geo.y() + 40) if geo else (40, 40))
+    wsize = size or (widget.width(), widget.height())
+    pos = (_window_global_pos() or _on_screen(_state["pos"], wsize) or _on_screen(_load_saved()[0], wsize)
+           or _default_pos(widget))
     if size:
         widget.resize(*size)
     widget.hide()
@@ -209,6 +233,8 @@ def _do_move_by(widget, dx, dy):
     if not lib or not _state["pinned"] or _state["x11"] or _state["pos"] is None:
         return False
     x, y = _state["pos"][0] + dx, _state["pos"][1] + dy
+    if _on_screen((x, y), (widget.width(), widget.height())) is None:
+        return False
     ptr = _qwindow_ptr(widget)
     if ptr is None or not lib.danlayer_move(ptr, x, y):
         return False
