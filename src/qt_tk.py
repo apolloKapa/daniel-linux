@@ -14,7 +14,7 @@ import sys
 import threading
 
 from PyQt6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QFontMetricsF, QIcon, QImage, QPainter, QPixmap
+from PyQt6.QtGui import QBrush, QColor, QFont, QFontMetricsF, QIcon, QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QWidget
 
 _app = None
@@ -94,6 +94,11 @@ class _Item:
 
     def __init__(self, kind, coords, opts):
         self.kind, self.coords, self.opts = kind, list(coords), opts
+
+
+# On Windows 11 the system rounds Daniel's window corners; here the canvas does it (the window is
+# see-through outside them), the same radius as DanOverlay's panel
+CORNER_RADIUS = 12
 
 
 class Canvas(QWidget):
@@ -219,7 +224,22 @@ class Canvas(QWidget):
         return QRectF(QPointF(x1, y1), QPointF(x2, y2)).normalized()
 
     def paintEvent(self, _event):
-        painter = QPainter(self)
+        # everything is drawn into an image first, which then fills a rounded rectangle: a clip
+        # path would leave the corners jagged
+        dpr = self.devicePixelRatioF()
+        frame = QImage(int(self.width() * dpr), int(self.height() * dpr), QImage.Format.Format_ARGB32_Premultiplied)
+        frame.setDevicePixelRatio(dpr)
+        painter = QPainter(frame)
+        self._paint_items(painter)
+        painter.end()
+        out = QPainter(self)
+        out.setRenderHint(QPainter.RenderHint.Antialiasing)
+        out.setPen(Qt.PenStyle.NoPen)
+        out.setBrush(QBrush(frame))
+        out.drawRoundedRect(QRectF(self.rect()), CORNER_RADIUS, CORNER_RADIUS)
+        out.end()
+
+    def _paint_items(self, painter):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
         painter.fillRect(self.rect(), self._bg)
@@ -253,7 +273,6 @@ class Canvas(QWidget):
                     painter.fillRect(rect.adjusted(0, 0, 1, 1), fill)
                 else:
                     painter.drawRect(rect)
-        painter.end()
 
 
 class _Relay(QObject):
@@ -284,6 +303,8 @@ class Tk(QWidget):
         self._main_thread = threading.main_thread()
         self.tk = self  # root.tk.call(...)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # see-through outside the canvas's rounded corners
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
     # -- tkinter API ---------------------------------------------------------------
     def call(self, *args):
@@ -303,8 +324,9 @@ class Tk(QWidget):
         pass
 
     def configure(self, bg=None, **_):
-        if bg:
-            self.setStyleSheet(f"background:{bg};")
+        # the canvas fills the window and paints the background itself, with rounded corners;
+        # a background here would show square behind them
+        pass
 
     config = configure
 
