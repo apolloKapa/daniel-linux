@@ -569,7 +569,7 @@ root.bind("<Tab>", cycle_mode)
 
 if os.name != "nt":
     # On Windows Daniel is always on top; on Linux it starts pinned above everything too (fullscreen
-    # osu! included); P toggles it (unpinned, it can be dragged; P again pins it there)
+    # osu! included); dragging moves it either way, P toggles the pin
     linux_pin.init("daniel")
 
     def toggle_pin(event=None):

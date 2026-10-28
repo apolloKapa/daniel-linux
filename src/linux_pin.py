@@ -8,7 +8,8 @@
 #
 # Where the window goes: niri reports where a floating window is, so it's pinned right there. Other
 # compositors (KDE Plasma's KWin, ...) don't tell, so it goes where it was last pinned (remembered in
-# ~/.config/<app>/pin.json), top-left at first; a pinned window can be moved with move_by().
+# ~/.config/<app>/pin.json), top-left at first. A pinned window is moved by dragging it with the left
+# mouse button (the compositor can't move layer surfaces, so the app moves itself, see _Dragger).
 # On an X11 session the window just gets Qt's stay-on-top flag instead.
 #
 # Qt window changes have to happen on the GUI thread: call init() on the main thread before the
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 _lib = None
 _lib_failed = False
 _relay = None
+_dragger = None
 _state = {"pinned": False, "pos": None, "widget": None, "x11": False}
 _config_path = None
 
@@ -212,7 +214,7 @@ def _do_pin(widget, size=None):
     if not lib or not lib.danlayer_available():
         return False
     wsize = size or (widget.width(), widget.height())
-    pos = (_window_global_pos() or _on_screen(_state["pos"], wsize) or _on_screen(_load_saved()[0], wsize)
+    pos = (_on_screen(_window_global_pos(), wsize) or _on_screen(_state["pos"], wsize) or _on_screen(_load_saved()[0], wsize)
            or _default_pos(widget))
     if size:
         widget.resize(*size)
@@ -224,6 +226,9 @@ def _do_pin(widget, size=None):
     widget.show()
     _state.update(pinned=True, pos=pos, widget=widget)
     save_position()
+    global _dragger
+    if _dragger is None:
+        _dragger = _make_dragger()
     logger.info("linux_pin: pinned at %s", pos)
     return True
 
@@ -264,6 +269,80 @@ def _do_unpin(widget):
     threading.Thread(target=_restore_position, args=(pos,), daemon=True).start()
     logger.info("linux_pin: unpinned")
     return True
+
+
+class _DragState:
+    """Left-drag on a pinned window moves it. niri (like other Smithay compositors) keeps a drag's
+    pointer coordinates relative to where the surface was when the button went down, so the window
+    goes to its start position plus the pointer's offset. Other compositors (KWin, wlroots) give
+    coordinates relative to where the surface is now, so they jump when it moves: there it's moved
+    by the offset, then motion is ignored until the compositor has had a frame to put it there."""
+
+    THRESHOLD = 5   # px before a press becomes a drag (so clicks still click)
+    SETTLE_MS = 20
+
+    def __init__(self):
+        self.press = None      # local position of the press
+        self.start = None      # where the window was then
+        self.dragging = False
+        self.settling = False
+        self.fixed_origin = bool(os.environ.get("NIRI_SOCKET"))
+
+
+def _make_dragger():
+    from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
+    from PyQt6.QtWidgets import QApplication
+
+    class _Dragger(QObject):
+        def __init__(self):
+            super().__init__()
+            self.drag = _DragState()
+
+        def _settled(self):
+            self.drag.settling = False
+
+        def eventFilter(self, obj, event):
+            widget = _state["widget"]
+            if not _state["pinned"] or _state["x11"] or widget is None:
+                return False
+            try:
+                # mouse events reach the top-level QWindow first, in its coordinates
+                if obj is not widget.windowHandle():
+                    return False
+            except RuntimeError:  # the widget is gone (app closing)
+                return False
+            kind = event.type()
+            drag = self.drag
+            if kind == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+                drag.press = event.position()
+                drag.start = _state["pos"]
+                drag.dragging = False
+            elif kind == QEvent.Type.MouseMove and drag.press is not None:
+                if not event.buttons() & Qt.MouseButton.LeftButton:
+                    drag.press = None
+                    return False
+                d = event.position() - drag.press
+                if not drag.dragging and abs(d.x()) + abs(d.y()) < drag.THRESHOLD:
+                    return False
+                drag.dragging = True
+                if drag.fixed_origin:
+                    x, y = drag.start[0] + int(d.x()), drag.start[1] + int(d.y())
+                    _do_move_by(widget, x - _state["pos"][0], y - _state["pos"][1])
+                elif not drag.settling and (int(d.x()) or int(d.y())):
+                    if _do_move_by(widget, int(d.x()), int(d.y())):
+                        drag.settling = True
+                        QTimer.singleShot(drag.SETTLE_MS, self._settled)
+                return True
+            elif kind == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
+                if drag.dragging:
+                    save_position()
+                drag.press = None
+                drag.dragging = False
+            return False
+
+    dragger = _Dragger()
+    QApplication.instance().installEventFilter(dragger)
+    return dragger
 
 
 def init(app_name: str = "danoverlay"):
@@ -323,7 +402,8 @@ def unpin(widget) -> bool:
 
 
 def move_by(widget, dx: int, dy: int) -> bool:
-    """Move a pinned window by (dx, dy) (the compositor can't move layer surfaces)."""
+    """Move a pinned window by (dx, dy) (the compositor can't move layer surfaces). Dragging with
+    the mouse already does this."""
     return bool(_on_gui_thread(_do_move_by, widget, dx, dy))
 
 

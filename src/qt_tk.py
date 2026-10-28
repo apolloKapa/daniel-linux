@@ -379,8 +379,7 @@ class Tk(QWidget):
         return super().event(event)
 
     def mousePressEvent(self, event):
-        # unpinned: dragging moves the window (the compositor moves it). A pinned layer surface
-        # can't be dragged reliably (its pointer coordinates move with it): unpin with P, move, pin.
+        # unpinned: dragging moves the window (the compositor moves it); pinned, linux_pin moves it
         import linux_pin
         if event.button() == Qt.MouseButton.LeftButton and not linux_pin.is_pinned() and self.windowHandle() is not None:
             self.windowHandle().startSystemMove()
