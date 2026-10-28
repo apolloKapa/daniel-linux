@@ -7,11 +7,36 @@ import sys
 BASE_DIR = os.path.dirname(__file__)
 
 
+def _osu_winello_dirs():
+    data = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+    return os.path.join(data, "osuconfig"), os.path.join(data, "wineprefixes", "osu-wineprefix")
+
+
+def find_wine():
+    """Wine to run msd.exe with: DANIEL_WINE, osu-winello's own Wine, then the system's."""
+    env_wine = os.environ.get("DANIEL_WINE")
+    if env_wine:
+        return env_wine
+    osuconfig, _ = _osu_winello_dirs()
+    winello_wine = os.path.join(osuconfig, "wine-osu", "bin", "wine")
+    if os.access(winello_wine, os.X_OK):
+        return winello_wine
+    return shutil.which("wine64") or shutil.which("wine")
+
+
+def wine_prefix():
+    """The Wine prefix osu! runs in (osu-winello's), so msd.exe finds the VC++ runtime there."""
+    if os.environ.get("WINEPREFIX"):
+        return os.environ["WINEPREFIX"]
+    _, prefix = _osu_winello_dirs()
+    return prefix if os.path.isdir(prefix) else None
+
+
 def _resolve_msd_command():
     env_path = os.environ.get("MSD_BIN_PATH")
     if env_path:
         if os.name != "nt" and env_path.lower().endswith(".exe"):
-            wine = shutil.which("wine64") or shutil.which("wine")
+            wine = find_wine()
             if wine:
                 return [wine, env_path], env_path
         return [env_path], env_path
@@ -26,7 +51,7 @@ def _resolve_msd_command():
         return [native_msd], native_msd
 
     if os.path.exists(windows_msd):
-        wine = shutil.which("wine64") or shutil.which("wine")
+        wine = find_wine()
         if wine:
             return [wine, windows_msd], windows_msd
 
@@ -98,11 +123,19 @@ def calculate_msd(notes):
 
     if os.name == "nt":
         popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    elif len(cmd) > 1:
+        # msd.exe through Wine: osu!'s prefix, and none of Wine's own chatter on stderr
+        env = dict(os.environ, WINEDEBUG="-all")
+        prefix = wine_prefix()
+        if prefix:
+            env["WINEPREFIX"] = prefix
+        popen_kwargs["env"] = env
 
     p = subprocess.Popen(cmd, **popen_kwargs)
     output, err = p.communicate(json.dumps(notes))
 
-    if err:
+    # Wine prints status lines ("fsync: up and running") even when msd.exe works
+    if err and (p.returncode != 0 or not output.strip()):
         print("MSD ERROR:", err, file=sys.stderr)
 
     return json.loads(output)

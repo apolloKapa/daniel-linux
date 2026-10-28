@@ -20,6 +20,46 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
+def _match_case(path):
+    """Windows paths ignore case; find the real spelling on a case-sensitive Linux filesystem."""
+    if os.path.exists(path):
+        return path
+    parts = path.strip("/").split("/")
+    current = "/"
+    for part in parts:
+        candidate = os.path.join(current, part)
+        if not os.path.exists(candidate):
+            try:
+                match = next((e for e in os.listdir(current) if e.lower() == part.lower()), None)
+            except OSError:
+                return path
+            if match is None:
+                return path
+            candidate = os.path.join(current, match)
+        current = candidate
+    return current
+
+
+def wine_to_unix_path(path):
+    """tosu running under Wine (osu-winello) reports Windows paths like D:\\Songs\\...; map the
+    drive letter through the Wine prefix's dosdevices links. Linux paths pass through."""
+    path = path.replace("\\", "/")
+    if len(path) < 2 or path[1] != ":":
+        return _match_case(os.path.normpath(path))
+    drive, rest = path[0].lower(), path[2:].lstrip("/")
+    base = None
+    prefix = msd_converter.wine_prefix()
+    if prefix:
+        link = os.path.join(prefix, "dosdevices", drive + ":")
+        if os.path.exists(link):
+            base = os.path.realpath(link)
+        elif drive == "c":
+            base = os.path.join(prefix, "drive_c")
+    if base is None:
+        base = "/" if drive == "z" else drive + ":"
+    return _match_case(os.path.normpath(os.path.join(base, rest)))
+
+
 # --- Constants ---
 
 TOSU_WS = "ws://localhost:24050/ws"
@@ -68,10 +108,18 @@ def _font_size(size):
     return max(8, int(round(size * FONT_SCALE)))
 
 
-FONT_PREFIX = ("Segoe UI Semibold", _font_size(30))
-FONT_DAN = ("Segoe UI Bold", _font_size(45))
-FONT_MSD_SKILL = ("Segoe UI Semibold", _font_size(29))
-FONT_CONNECTION = ("Segoe UI Semibold", _font_size(18))
+if os.name == "nt":
+    FONT_PREFIX = ("Segoe UI Semibold", _font_size(30))
+    FONT_DAN = ("Segoe UI Bold", _font_size(45))
+    FONT_MSD_SKILL = ("Segoe UI Semibold", _font_size(29))
+    FONT_CONNECTION = ("Segoe UI Semibold", _font_size(18))
+else:
+    # Segoe UI isn't on Linux, and Tk only takes the weight as its own field
+    _FONT_FAMILY = os.environ.get("DANIEL_FONT", "Noto Sans")
+    FONT_PREFIX = (_FONT_FAMILY, _font_size(30), "bold")
+    FONT_DAN = (_FONT_FAMILY, _font_size(45), "bold")
+    FONT_MSD_SKILL = (_FONT_FAMILY, _font_size(29), "bold")
+    FONT_CONNECTION = (_FONT_FAMILY, _font_size(18), "bold")
 
 PREFIX_Y_OFFSET = 4.1
 MSD_RELEVANCE_FRACTION = 0.15
@@ -142,7 +190,8 @@ if os.name == "nt" and hasattr(ctypes, "windll"):
     except Exception:
         pass
 
-root = tk.Tk()
+# className: the window's app id on Linux (matches the desktop entry)
+root = tk.Tk(className="daniel")
 root.tk.call("tk", "scaling", 1.0)
 root.title("Daniel by TheBagelOfMan")
 root.geometry(f"{WINDOW_WIDTH}x{FULL_HEIGHT}")
@@ -583,7 +632,7 @@ def on_message(ws_app, msg):
             return
 
         songs = d["settings"]["folders"]["songs"]
-        new_map = os.path.join(songs, folder, file)
+        new_map = wine_to_unix_path(songs + "\\" + folder + "\\" + file) if os.name != "nt" else os.path.join(songs, folder, file)
         new_mod = get_rate_mod(read_mods(d))
         new_time = bm.get("time", {}).get("current", 0)
         now = time.monotonic()

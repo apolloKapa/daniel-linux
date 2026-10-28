@@ -1,21 +1,33 @@
-# Daniel
+# Daniel for Linux
 
-A real-time rice difficulty calculator for 4k osu!mania must which must be run alongside [tosu](https://tosu.app).
+A Linux port of [Daniel](https://github.com/TheBagelOfMan/Daniel) by TheBagelOfMan: a real-time rice difficulty calculator for 4k osu!mania that runs alongside [tosu](https://tosu.app).
 
-**[Website](https://thebagelofman.github.io/Daniel/)** · **[Download](https://github.com/TheBagelOfMan/Daniel/releases/latest)**
+**[Original website](https://thebagelofman.github.io/Daniel/)** · **[Original repository](https://github.com/TheBagelOfMan/Daniel)**
 
-## Linux build
-
-Use `build_linux.sh` to create a Linux binary:
+## Install
 
 ```bash
-./build_linux.sh
+git clone https://github.com/apolloKapa/daniel-linux.git
+cd daniel-linux
+./install.sh
 ```
 
-This script installs dependencies using python venv and outputs `dist/Daniel-linux`. If `src/msd` is missing, set `MSD_BIN_PATH` at runtime to a Linux-compatible `msd` executable.
+Then start **Daniel** from your app menu, or run `daniel`.
 
-On Linux/macOS, it will use Wine if only `src/msd.exe` is available.
+The installer needs `python3` with tkinter. On Arch, install it with `sudo pacman -S tk`. Everything else goes into `~/.local`:
+
+- the app in `~/.local/share/daniel`, with its own Python environment (numpy, pillow, websocket-client)
+- the `~/.local/bin/daniel` launcher and a menu entry
+- **tosu**: if osu! was installed with [osu-winello](https://github.com/NelloKudo/osu-winello), the installer offers to run `osu-wine --tosu`. After that, tosu starts with osu! automatically. Use `--no-tosu` to skip this.
+
+To update, run `git pull && ./install.sh`. To remove, run `./install.sh --uninstall`. That leaves tosu and osu! untouched.
+
+## How the port works
+
+- **tosu under Wine reports Windows paths** (osu-winello puts osu! on `D:\`, for example). Daniel maps the drive letter through the Wine prefix's `dosdevices` links. It also matches the case of each path component, because Linux filesystems are case-sensitive.
+- **MSD skillsets** come from the original `msd.exe` (Etterna's MinaCalc). On Linux it runs through osu-winello's own Wine in osu!'s prefix, or through the system Wine. The results are identical to Windows. Without Wine, the dan estimate still works, but the MSD line shows "MSD Error". Set `DANIEL_WINE` to choose a different Wine, or `MSD_BIN_PATH` to use a native `msd` build.
+- **Fonts**: Segoe UI doesn't exist on Linux, so Daniel uses Noto Sans in bold. Set `DANIEL_FONT` to choose another font, and `DANIEL_FONT_SCALE` to resize the text.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE), © 2026 TheBagelOfMan. Linux port changes are under the same license.
