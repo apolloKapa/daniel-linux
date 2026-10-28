@@ -20,7 +20,8 @@ if [[ ! -x "$VENV_DIR/bin/python" ]]; then
     python3 -m venv "$VENV_DIR"
 fi
 "$VENV_DIR/bin/python" -m pip install -q --upgrade pip
-"$VENV_DIR/bin/python" -m pip install -q pyinstaller numpy pillow websocket-client
+# PyQt6's Qt version pinned: linux/layershell builds LayerShellQt against this exact Qt (QT_VERSION)
+"$VENV_DIR/bin/python" -m pip install -q pyinstaller numpy pillow websocket-client PyQt6==6.11.0 PyQt6-Qt6==6.11.2
 
 # icon for the window, the menu entry and the AppImage itself
 "$VENV_DIR/bin/python" - docs/images/icon.ico "$BUILD_DIR/daniel.png" <<'EOF'
@@ -51,18 +52,35 @@ EOF
     --exclude-module PIL.ImageCms \
     --exclude-module PIL._imagingcms \
     --exclude-module PIL.ImageQt \
-    --hidden-import PIL._tkinter_finder \
+    --hidden-import qt_tk \
+    --hidden-import linux_pin \
+    --exclude-module tkinter \
+    --exclude-module PyQt6.QtQml --exclude-module PyQt6.QtQuick --exclude-module PyQt6.QtPdf \
+    --exclude-module PyQt6.QtMultimedia --exclude-module PyQt6.QtWebEngineCore --exclude-module PyQt6.QtDesigner \
     --add-data "$ROOT_DIR/src/msd.exe:." \
     src/daniel.py
 
 # Tcl extensions other packages install next to Tcl (graphviz's on Arch) come along with Tk's
 # library; drop them, then any bundled library nothing else needs any more
 rm -rf "$BUILD_DIR/dist/daniel/_internal/_tcl_data/graphviz"
+INTERNAL="$BUILD_DIR/dist/daniel/_internal"
+# Qt's UI translations aren't used; its GTK theme plugin would pull in GTK and a second ICU
+rm -rf "$INTERNAL/PyQt6/Qt6/translations"
+rm -f "$INTERNAL/PyQt6/Qt6/plugins/platformthemes/libqgtk3.so"
+# pinning above fullscreen games (linux_pin.py): LayerShellQt + libdanlayer.so, next to the Qt
+# they were built for. CI builds them with linux/layershell/build.sh before this script runs.
+if [[ -f "$ROOT_DIR/linux/layershell/out/libdanlayer.so" ]]; then
+    cp "$ROOT_DIR/linux/layershell/out"/*.so* "$INTERNAL/PyQt6/Qt6/lib/"
+else
+    echo "WARNING: linux/layershell/out missing: Daniel can't pin above fullscreen games"
+fi
 # libraries AppImages take from the host (the AppImage excludelist): an older bundled fontconfig
 # can't read a newer distro's font config (errors, wrong text size), X11 has to match the server
 for lib in libfontconfig.so.1 libfreetype.so.6 libexpat.so.1 libz.so.1 libuuid.so.1 \
            libX11.so.6 libX11-xcb.so.1 libxcb.so.1 libXau.so.6 libXdmcp.so.6 libXext.so.6 \
-           libXrender.so.1 libXft.so.2 libXss.so.1; do
+           libXrender.so.1 libXft.so.2 libXss.so.1 \
+           libstdc++.so.6 libgcc_s.so.1 libGL.so.1 libGLX.so.0 libGLdispatch.so.0 libEGL.so.1 \
+           libgbm.so.1 libdrm.so.2 libasound.so.2; do
     rm -f "$BUILD_DIR/dist/daniel/_internal/$lib"
 done
 "$VENV_DIR/bin/python" - "$BUILD_DIR/dist/daniel/_internal" <<'EOF'

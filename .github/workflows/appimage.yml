@@ -22,12 +22,20 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk python3-venv binutils fonts-noto-core
+          sudo apt-get install -y python3-venv binutils fonts-noto-core cmake ninja-build pkg-config \
+            libwayland-dev wayland-protocols libexpat1-dev libffi-dev libxml2-dev \
+            libgl-dev libegl-dev libxkbcommon-dev libvulkan-dev \
+            libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libegl1
 
       - name: Get appimagetool
         run: |
           wget -q -O appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
           chmod +x appimagetool
+
+      - name: Build LayerShellQt (pinning above fullscreen games)
+        env:
+          CMAKE_GENERATOR: Ninja
+        run: ./linux/layershell/build.sh
 
       - name: Build AppImage
         env:

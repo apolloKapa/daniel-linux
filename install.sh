@@ -38,10 +38,6 @@ done
 
 # --- requirements -----------------------------------------------------------
 command -v python3 >/dev/null 2>&1 || die "python3 is required."
-python3 -c "import tkinter" 2>/dev/null || die "Python's tkinter is missing. Install it first:
-    Arch: sudo pacman -S tk
-    Debian/Ubuntu: sudo apt install python3-tk
-    Fedora: sudo dnf install python3-tkinter"
 python3 -c "import venv, ensurepip" 2>/dev/null || die "Python's venv module is missing (Debian/Ubuntu: sudo apt install python3-venv)."
 
 # --- files ------------------------------------------------------------------
@@ -57,9 +53,16 @@ if [[ ! -x "$APP_DIR/venv/bin/python" ]]; then
     info "Creating Python environment"
     python3 -m venv "$APP_DIR/venv"
 fi
-info "Installing Python packages (numpy, pillow, websocket-client)"
+info "Installing Python packages (numpy, pillow, websocket-client, PyQt6)"
 "$APP_DIR/venv/bin/python" -m pip install -q --upgrade pip
-"$APP_DIR/venv/bin/python" -m pip install -q numpy pillow websocket-client
+# the Qt that linux/layershell is built against (pinning above fullscreen games)
+"$APP_DIR/venv/bin/python" -m pip install -q numpy pillow websocket-client PyQt6==6.11.0 PyQt6-Qt6==6.11.2
+QT_LIB="$("$APP_DIR/venv/bin/python" -c 'import os, PyQt6; print(os.path.join(os.path.dirname(PyQt6.__file__), "Qt6", "lib"))')"
+if [[ -f "$REPO_DIR/linux/layershell/out/libdanlayer.so" ]]; then
+    cp "$REPO_DIR/linux/layershell/out"/*.so* "$QT_LIB/"
+else
+    warn "linux/layershell/out missing (built by CI): Daniel can't pin above fullscreen games. The AppImage can."
+fi
 
 # --- icon, launcher, menu entry -----------------------------------------------
 "$APP_DIR/venv/bin/python" - "$REPO_DIR/docs/images/icon.ico" "$ICON_FILE" "$APP_DIR/src/icon.png" <<'EOF'

@@ -1,4 +1,10 @@
-import tkinter as tk
+import os
+
+if os.name == "nt":
+    import tkinter as tk
+else:
+    # Qt stand-in for tkinter (so the window can be pinned above fullscreen games)
+    import qt_tk as tk
 
 import numpy as np
 from PIL import Image, ImageDraw

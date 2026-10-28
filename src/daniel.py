@@ -4,7 +4,13 @@ import json
 import time
 import threading
 import ctypes
-import tkinter as tk
+if os.name == "nt":
+    import tkinter as tk
+else:
+    # Linux: a Qt stand-in for tkinter, so the window can be pinned above fullscreen osu!
+    # (Wayland ignores "topmost"; linux_pin turns the window into an overlay-layer surface)
+    import qt_tk as tk
+    import linux_pin
 
 import numpy as np
 import websocket
@@ -560,6 +566,19 @@ def cycle_mode(event=None):
 
 
 root.bind("<Tab>", cycle_mode)
+
+if os.name != "nt":
+    # On Windows Daniel is always on top; on Linux it starts pinned above everything too (fullscreen
+    # osu! included), P toggles it, and dragging it moves it
+    linux_pin.init("daniel")
+
+    def toggle_pin(event=None):
+        linux_pin.toggle(root)
+
+    root.bind("p", toggle_pin)
+    root.bind("P", toggle_pin)
+    if linux_pin.was_pinned(default=True):
+        root.after(300, lambda: linux_pin.pin(root) if linux_pin.available() else None)
 
 
 # --- Tick loop ---
