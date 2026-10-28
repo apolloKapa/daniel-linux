@@ -565,20 +565,20 @@ def cycle_mode(event=None):
     print(f"[Mode] Switched to {MODE_NAMES[current_mode]}")
 
 
-root.bind("<Tab>", cycle_mode)
-
-if os.name != "nt":
-    # On Windows Daniel is always on top; on Linux it starts pinned above everything too (fullscreen
-    # osu! included); dragging moves it either way, P toggles the pin
+if os.name == "nt":
+    root.bind("<Tab>", cycle_mode)
+else:
+    # On Windows Daniel is always on top. Wayland ignores that, so on Linux it opens as a normal
+    # window and Tab pins it above everything (fullscreen osu! included) or unpins it, like
+    # DanOverlay's Tab; P switches the mode instead
     linux_pin.init("daniel")
 
     def toggle_pin(event=None):
         linux_pin.toggle(root)
 
-    root.bind("p", toggle_pin)
-    root.bind("P", toggle_pin)
-    if linux_pin.was_pinned(default=True):
-        root.after(300, lambda: linux_pin.pin(root) if linux_pin.available() else None)
+    root.bind("<Tab>", toggle_pin)
+    root.bind("p", cycle_mode)
+    root.bind("P", cycle_mode)
 
 
 # --- Tick loop ---

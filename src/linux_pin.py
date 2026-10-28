@@ -44,7 +44,7 @@ def _load_saved():
 
 
 def save_position():
-    """Remember where the pinned window is (and whether it's pinned) for the next start."""
+    """Remember where the pinned window is, so pinning again (also after a restart) puts it there."""
     if not _config_path or _state["pos"] is None:
         return
     try:
@@ -53,13 +53,6 @@ def save_position():
             json.dump({"x": _state["pos"][0], "y": _state["pos"][1], "pinned": _state["pinned"]}, f)
     except OSError:
         pass
-
-
-def was_pinned(default: bool = False) -> bool:
-    """Whether the window was pinned when the app last closed (default: never run before)."""
-    if not _config_path or not os.path.exists(_config_path):
-        return default
-    return _load_saved()[1]
 
 
 def _load_lib():
