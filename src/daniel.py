@@ -105,7 +105,13 @@ FONT_SCALE = float(os.environ.get("DANIEL_FONT_SCALE", "1.0" if os.name == "nt" 
 
 
 def _font_size(size):
-    return max(8, int(round(size * FONT_SCALE)))
+    points = max(8, int(round(size * FONT_SCALE)))
+    if os.name == "nt":
+        return points
+    # Linux: Tk hands point sizes to Xft, which converts them with whatever DPI the X server
+    # reports (96 or 72 under XWayland, varying from run to run): give pixels (negative sizes)
+    # instead, as many as 96 DPI gives
+    return -int(round(points * 96 / 72))
 
 
 if os.name == "nt":

@@ -15,7 +15,7 @@ jobs:
     # the oldest supported Ubuntu: the bundled Python and libraries then run on most distros
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -37,7 +37,7 @@ jobs:
           DANIEL_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
         run: ./build_appimage.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: Daniel-x86_64.AppImage
           path: dist/Daniel-x86_64.AppImage

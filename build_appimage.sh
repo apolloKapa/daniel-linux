@@ -58,6 +58,13 @@ EOF
 # Tcl extensions other packages install next to Tcl (graphviz's on Arch) come along with Tk's
 # library; drop them, then any bundled library nothing else needs any more
 rm -rf "$BUILD_DIR/dist/daniel/_internal/_tcl_data/graphviz"
+# libraries AppImages take from the host (the AppImage excludelist): an older bundled fontconfig
+# can't read a newer distro's font config (errors, wrong text size), X11 has to match the server
+for lib in libfontconfig.so.1 libfreetype.so.6 libexpat.so.1 libz.so.1 libuuid.so.1 \
+           libX11.so.6 libX11-xcb.so.1 libxcb.so.1 libXau.so.6 libXdmcp.so.6 libXext.so.6 \
+           libXrender.so.1 libXft.so.2 libXss.so.1; do
+    rm -f "$BUILD_DIR/dist/daniel/_internal/$lib"
+done
 "$VENV_DIR/bin/python" - "$BUILD_DIR/dist/daniel/_internal" <<'EOF'
 import os, subprocess, sys
 root = sys.argv[1]
