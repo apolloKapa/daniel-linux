@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds dist/Daniel-x86_64.AppImage: a PyInstaller bundle (Python, Tk, numpy, msd.exe) in an AppDir.
 # GitHub Actions runs this on every v* tag (.github/workflows/appimage.yml); locally it needs python3
-# with tkinter and appimagetool (APPIMAGETOOL=/path/to/appimagetool, or on PATH).
+# and appimagetool (APPIMAGETOOL=/path/to/appimagetool, or on PATH).
 #   ./build_appimage.sh            full build
 #   ./build_appimage.sh --appdir   stop after the AppDir (no appimagetool needed)
 set -euo pipefail

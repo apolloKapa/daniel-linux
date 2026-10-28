@@ -657,6 +657,10 @@ def on_message(ws_app, msg):
             return
 
         songs = d["settings"]["folders"]["songs"]
+        # osu! allows a Songs folder relative to the game folder (BeatmapDirectory = Songs)
+        game = d["settings"]["folders"].get("game", "")
+        if songs and game and not (songs.startswith(("/", "\\")) or songs[1:2] == ":"):
+            songs = game.rstrip("\\/") + "\\" + songs
         new_map = wine_to_unix_path(songs + "\\" + folder + "\\" + file) if os.name != "nt" else os.path.join(songs, folder, file)
         new_mod = get_rate_mod(read_mods(d))
         new_time = bm.get("time", {}).get("current", 0)
