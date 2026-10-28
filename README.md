@@ -4,6 +4,17 @@ A Linux port of [Daniel](https://github.com/TheBagelOfMan/Daniel) by TheBagelOfM
 
 **[Original website](https://thebagelofman.github.io/Daniel/)** · **[Original repository](https://github.com/TheBagelOfMan/Daniel)**
 
+## AppImage
+
+Download `Daniel-x86_64.AppImage` from the [releases](../../releases). Then run:
+
+```bash
+chmod +x Daniel-x86_64.AppImage
+./Daniel-x86_64.AppImage
+```
+
+Python and every library are inside the AppImage. You still need tosu running with osu!, and Wine for the MSD line. osu-winello provides both, see below. A new release is built automatically when a `v*` tag is pushed, and `./build_appimage.sh` builds one locally.
+
 ## Install
 
 ```bash

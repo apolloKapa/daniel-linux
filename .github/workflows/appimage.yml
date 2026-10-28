@@ -1,0 +1,51 @@
+name: AppImage
+
+# Pushing a v* tag builds Daniel-x86_64.AppImage and attaches it to a release for that tag.
+# Running it by hand (Actions -> AppImage -> Run workflow) only uploads it as a build artifact.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # the oldest supported Ubuntu: the bundled Python and libraries then run on most distros
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk python3-venv binutils fonts-noto-core
+
+      - name: Get appimagetool
+        run: |
+          wget -q -O appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+
+      - name: Build AppImage
+        env:
+          APPIMAGETOOL: ${{ github.workspace }}/appimagetool
+          # runners have no FUSE: let the tool unpack itself instead of mounting
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          DANIEL_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+        run: ./build_appimage.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Daniel-x86_64.AppImage
+          path: dist/Daniel-x86_64.AppImage
+
+      - name: Attach to release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "Daniel for Linux $GITHUB_REF_NAME" --notes "Linux AppImage of Daniel by TheBagelOfMan. Download it, make it executable (chmod +x Daniel-x86_64.AppImage) and run it. Needs tosu running with osu!, and Wine for the MSD line (osu-winello's Wine is found automatically)."
+          gh release upload "$GITHUB_REF_NAME" dist/Daniel-x86_64.AppImage --clobber
